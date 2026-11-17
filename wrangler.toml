@@ -1,0 +1,13 @@
+name = "set-rs"
+main = "build/index.js"
+compatibility_date = "2026-11-17"
+
+[build]
+command = "cargo install -q \"worker-build@^0.9\" && worker-build --release"
+
+[durable_objects]
+bindings = [{ name = "GAME", class_name = "Game" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Game"]

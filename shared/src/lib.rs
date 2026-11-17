@@ -1,16 +1,9 @@
 pub mod card;
+pub mod game;
 
 use serde::{Serialize, Deserialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlayerInfo {
-    id: u32,
-    name: String,
-    score: i32,
-    ready: bool,
-    connected: bool,
-}
-
+use crate::game::PlayerInfo;
+ 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMsg {

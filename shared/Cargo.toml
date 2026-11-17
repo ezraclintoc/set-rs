@@ -3,5 +3,9 @@ name = "shared"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+server = ["dep:rand"]
+
 [dependencies]
-serde.workspace = true
+serde = { workspace = true }
+rand = { version = "0.9", optional = true }

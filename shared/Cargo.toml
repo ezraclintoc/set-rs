@@ -8,4 +8,4 @@ server = ["dep:rand"]
 
 [dependencies]
 serde = { workspace = true }
-rand = { version = "0.9", optional = true }
+rand = { version = "0.9", default-features = false, features = ["std_rng", "alloc"], optional = true }

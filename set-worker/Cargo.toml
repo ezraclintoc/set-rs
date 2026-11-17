@@ -1,5 +1,5 @@
 [package]
-name = "set-rs"
+name = "set-worker"
 version = "0.1.0"
 edition = "2021"
 authors = ["Ezra Clintoc <140189732+ezraclintoc@users.noreply.github.com>"]
@@ -11,3 +11,5 @@ crate-type = ["cdylib"]
 worker = { version = "0.9" }
 worker-macros = { version = "0.9" }
 shared = { path = "../shared", features = ["server"]}
+serde = { workspace = true }
+serde_json = { workspace = true }

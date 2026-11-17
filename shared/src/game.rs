@@ -19,7 +19,7 @@ pub enum Phase {
 
 #[cfg(feature = "server")]
 mod server {
-    use crate::card::{Card, is_set_ids};
+    use crate::card::is_set_ids;
 
     use super::*;
     use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
@@ -61,7 +61,7 @@ mod server {
             if a == b || b == c || a == c {
                 return false;
             }
-            
+
             let Some(mut indexes) = cards
                 .iter()
                 .map(|c| self.board.iter().position(|b| b == c))
@@ -76,7 +76,9 @@ mod server {
 
             indexes.sort_unstable_by(|a, b| b.cmp(a));
 
-            indexes.iter().for_each(|&i|  { self.board.remove(i); });
+            indexes.iter().for_each(|&i| {
+                self.board.remove(i);
+            });
 
             // TODO make dealt cards fill the removed cards
             self.deal();

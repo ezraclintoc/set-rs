@@ -1,5 +1,6 @@
 use worker::*;
 
+#[expect(dead_code)]
 #[durable_object]
 pub struct Game {
     state: State,

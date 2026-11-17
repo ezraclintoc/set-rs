@@ -1,9 +1,9 @@
 pub mod card;
 pub mod game;
 
-use serde::{Serialize, Deserialize};
 use crate::game::PlayerInfo;
- 
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMsg {
@@ -15,9 +15,23 @@ pub enum ClientMsg {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMsg {
-    Welcome { player_id: u32, token: String },
-    State { board: Vec<u8>, players: Vec<PlayerInfo>, deck_left: u8 },
-    SetFound { player_id: u32, cards: [u8; 3] },
-    Rejected { reason: String },
-    GameOver { players: Vec<PlayerInfo> },
+    Welcome {
+        player_id: u32,
+        token: String,
+    },
+    State {
+        board: Vec<u8>,
+        players: Vec<PlayerInfo>,
+        deck_left: u8,
+    },
+    SetFound {
+        player_id: u32,
+        cards: [u8; 3],
+    },
+    Rejected {
+        reason: String,
+    },
+    GameOver {
+        players: Vec<PlayerInfo>,
+    },
 }

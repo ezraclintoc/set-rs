@@ -1,0 +1,64 @@
+# Run `prek install` once after cloning to enable these hooks.
+default_install_hook_types = ["pre-commit", "pre-push"]
+
+# General file hygiene
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v6.0.0"
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+
+[[repos.hooks]]
+id = "check-toml"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+
+# Rust checks, using the toolchain from the Nix dev shell
+[[repos]]
+repo = "local"
+
+# Formats the whole workspace. The commit fails if anything changed,
+# so you can review and stage the formatted files.
+[[repos.hooks]]
+id = "cargo-fmt"
+name = "cargo fmt"
+language = "system"
+entry = "cargo fmt --all"
+files = '(\.rs|Cargo\.toml)$'
+pass_filenames = false
+
+# The shared crate builds natively, with the server feature on.
+[[repos.hooks]]
+id = "clippy-shared"
+name = "clippy (shared)"
+language = "system"
+entry = "cargo clippy -p shared --all-features --all-targets -- -D warnings"
+files = '^shared/.*(\.rs|Cargo\.toml)$'
+pass_filenames = false
+
+# The worker and frontend only target wasm.
+[[repos.hooks]]
+id = "clippy-wasm"
+name = "clippy (worker, frontend)"
+language = "system"
+entry = "cargo clippy -p set-worker -p frontend --target wasm32-unknown-unknown -- -D warnings"
+files = '(\.rs|Cargo\.toml)$'
+pass_filenames = false
+
+# Tests run on push instead of every commit, to keep commits fast.
+[[repos.hooks]]
+id = "test-shared"
+name = "cargo test (shared)"
+language = "system"
+entry = "cargo test -p shared --features server"
+files = '^shared/.*(\.rs|Cargo\.toml)$'
+pass_filenames = false
+stages = ["pre-push"]

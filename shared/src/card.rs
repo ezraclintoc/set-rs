@@ -2,19 +2,35 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum Shape { Diamond, Oval, Squiggle }
+pub enum Shape {
+    Diamond,
+    Oval,
+    Squiggle,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum Count { One, Two, Three }
+pub enum Count {
+    One,
+    Two,
+    Three,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum Color { Red, Purple, Green }
+pub enum Color {
+    Red,
+    Purple,
+    Green,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum Fill { Solid, Striped, Empty }
+pub enum Fill {
+    Solid,
+    Striped,
+    Empty,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct Card {
@@ -25,7 +41,7 @@ pub struct Card {
 }
 
 fn ok(a: u8, b: u8, c: u8) -> bool {
-    (a + b + c) % 3 == 0
+    (a + b + c).is_multiple_of(3)
 }
 
 pub fn is_set(a: &Card, b: &Card, c: &Card) -> bool {
@@ -47,7 +63,7 @@ impl Card {
             shape: Shape::ALL[(id / 27) as usize],
             count: Count::ALL[(id / 9 % 3) as usize],
             color: Color::ALL[(id / 3 % 3) as usize],
-            fill:  Fill::ALL[(id % 3) as usize],
+            fill: Fill::ALL[(id % 3) as usize],
         }
     }
 
@@ -55,7 +71,6 @@ impl Card {
         self.shape as u8 * 27 + self.count as u8 * 9 + self.color as u8 * 3 + self.fill as u8
     }
 }
-
 
 impl Shape {
     pub const ALL: [Shape; 3] = [Shape::Diamond, Shape::Oval, Shape::Squiggle];

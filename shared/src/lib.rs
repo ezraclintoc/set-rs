@@ -2,7 +2,7 @@ pub mod card;
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PlayerInfo {
     id: u32,
     name: String,

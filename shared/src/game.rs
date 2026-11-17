@@ -19,8 +19,10 @@ pub enum Phase {
 
 #[cfg(feature = "server")]
 mod server {
+    use crate::card::{Card, is_set_ids};
+
     use super::*;
-    use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
     use std::collections::HashMap;
 
     #[derive(Serialize, Deserialize)]
@@ -52,6 +54,34 @@ mod server {
         pub fn start(&mut self) {
             self.phase = Phase::Playing;
             self.deal();
+        }
+
+        pub fn submit_set(&mut self, cards: [u8; 3]) -> bool {
+            let [a, b, c] = cards;
+            if a == b || b == c || a == c {
+                return false;
+            }
+            
+            let Some(mut indexes) = cards
+                .iter()
+                .map(|c| self.board.iter().position(|b| b == c))
+                .collect::<Option<Vec<usize>>>()
+            else {
+                return false;
+            };
+
+            if !is_set_ids(cards) {
+                return false;
+            }
+
+            indexes.sort_unstable_by(|a, b| b.cmp(a));
+
+            indexes.iter().for_each(|&i|  { self.board.remove(i); });
+
+            // TODO make dealt cards fill the removed cards
+            self.deal();
+
+            true
         }
 
         pub fn deal(&mut self) {

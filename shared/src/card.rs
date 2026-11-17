@@ -35,6 +35,11 @@ pub fn is_set(a: &Card, b: &Card, c: &Card) -> bool {
         && ok(a.fill as u8, b.fill as u8, c.fill as u8)
 }
 
+pub fn is_set_ids(ids: [u8; 3]) -> bool {
+    let [a, b, c] = ids.map(Card::from_id);
+    is_set(&a, &b, &c)
+}
+
 impl Card {
     pub fn from_id(id: u8) -> Card {
         assert!(id < 81);

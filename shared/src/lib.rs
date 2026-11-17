@@ -6,15 +6,15 @@ pub enum Shape { Diamond, Oval, Squiggle }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-enum Count { One, Two, Three }
+pub enum Count { One, Two, Three }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-enum Color { Red, Purple, Green }
+pub enum Color { Red, Purple, Green }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-enum Fill { Solid, Striped, Empty }
+pub enum Fill { Solid, Striped, Empty }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct Card {

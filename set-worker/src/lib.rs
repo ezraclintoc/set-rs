@@ -217,8 +217,16 @@ impl SetRoom {
 
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
-    // TODO add router
-    let ns = env.durable_object("SETROOM")?;
-    let stub = ns.id_from_name("room-1")?.get_stub()?;
-    stub.fetch_with_request(req).await
+    Router::new()
+        .get_async("/api/game/:id/ws", |req, ctx| async move {
+            let id = match ctx.param("id") {
+                Some(n) => n.clone(),
+                None => return Response::error("missing id", 400),
+            };
+            let namespace = ctx.durable_object("SETROOM")?;
+            let stub = namespace.id_from_name(&id)?.get_stub()?;
+            stub.fetch_with_request(req).await
+        })
+        .run(req, env)
+        .await
 }

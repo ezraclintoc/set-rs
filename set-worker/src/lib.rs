@@ -99,11 +99,7 @@ impl DurableObject for SetRoom {
                         }
 
                         for w in self.state.get_websockets() {
-                            w.send_with_str(serde_json::to_string(&&ServerMsg::State {
-                                board: game.board.clone(),
-                                players: game.players.clone(),
-                                deck_left: game.deck_len() as u8,
-                            })?)?;
+                            w.send_with_str(serde_json::to_string(&game.state_msg())?)?;
                         }
                     }
                     Ok(ClientMsg::SubmitSet { cards }) => {
@@ -128,11 +124,7 @@ impl DurableObject for SetRoom {
                         let sf_json =
                             serde_json::to_string(&ServerMsg::SetFound { player_id, cards })?;
 
-                        let s_json = serde_json::to_string(&ServerMsg::State {
-                            board: game.board.clone(),
-                            players: game.players.clone(),
-                            deck_left: game.deck_len() as u8,
-                        })?;
+                        let s_json = serde_json::to_string(&game.state_msg())?;
 
                         for w in self.state.get_websockets() {
                             let _ = w.send_with_str(sf_json.clone());
@@ -160,11 +152,7 @@ impl DurableObject for SetRoom {
         game.start();
         self.save_game(&game).await?;
 
-        let json = serde_json::to_string(&ServerMsg::State {
-            board: game.board.clone(),
-            players: game.players.clone(),
-            deck_left: game.deck_len() as u8,
-        })?;
+        let json = serde_json::to_string(&game.state_msg())?;
         self.state.get_websockets().iter().for_each(|w| {
             let _ = w.send_with_str(json.clone());
         });

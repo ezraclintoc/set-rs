@@ -1,7 +1,7 @@
 pub mod card;
 pub mod game;
 
-use crate::game::PlayerInfo;
+use crate::game::{Phase, PlayerInfo};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +20,7 @@ pub enum ServerMsg {
         token: String,
     },
     State {
+        phase: Phase,
         board: Vec<u8>,
         players: Vec<PlayerInfo>,
         deck_left: u8,

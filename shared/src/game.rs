@@ -19,6 +19,7 @@ pub enum Phase {
 
 #[cfg(feature = "server")]
 mod server {
+    use crate::ServerMsg;
     use crate::card::is_set_ids;
 
     use super::*;
@@ -145,8 +146,13 @@ mod server {
             true
         }
 
-        pub fn deck_len(&self) -> usize {
-            self.deck.len()
+        pub fn state_msg(&self) -> ServerMsg {
+            ServerMsg::State {
+                phase: self.phase,
+                board: self.board.clone(),
+                players: self.players.clone(),
+                deck_left: self.deck.len() as u8,
+            }
         }
 
         pub fn set_ready(&mut self, player_id: u32, ready: bool) -> Result<Phase, String> {

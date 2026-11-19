@@ -98,8 +98,10 @@ impl DurableObject for SetRoom {
                                 .await?;
                         }
 
+                        // TODO: replace the broadcast loops with a shared `broadcast` helper.
+                        let json = serde_json::to_string(&game.state_msg())?;
                         for w in self.state.get_websockets() {
-                            w.send_with_str(serde_json::to_string(&game.state_msg())?)?;
+                            let _ = w.send_with_str(json.clone());
                         }
                     }
                     Ok(ClientMsg::SubmitSet { cards }) => {

@@ -74,7 +74,6 @@ Messages are JSON, tagged by a `type` field.
 | `Countdown { seconds }` | Everyone is ready and the game is about to start |
 | `SetFound { player_id, cards }` | Someone scored; the client highlights the set before the next `State` |
 | `Rejected { reason }` | An invalid or stale claim |
-| `GameOver { players }` | Final scores |
 
 Claims use card IDs instead of board positions because the board changes as sets are replaced. A claim made against an outdated board simply fails, since the cards are no longer on the table.
 

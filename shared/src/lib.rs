@@ -32,7 +32,4 @@ pub enum ServerMsg {
     Rejected {
         reason: String,
     },
-    GameOver {
-        players: Vec<PlayerInfo>,
-    },
 }

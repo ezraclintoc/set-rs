@@ -56,7 +56,11 @@ mod server {
             self.deal();
         }
 
-        pub fn submit_set(&mut self, cards: [u8; 3]) -> bool {
+        pub fn submit_set(&mut self, cards: [u8; 3], player_id: u32) -> bool {
+            if self.phase != Phase::Playing {
+                return false;
+            }
+
             let [a, b, c] = cards;
             if a == b || b == c || a == c {
                 return false;
@@ -83,16 +87,20 @@ mod server {
             // TODO make dealt cards fill the removed cards
             self.deal();
 
+            self.players.iter_mut().for_each(|pi| {
+                if pi.id == player_id {
+                    pi.score += 1;
+                }
+            });
+
             true
         }
 
         pub fn deal(&mut self) {
-            if self.deck.len() >= 3 {
-                while self.board.len() < 12 {
-                    self.deal_three();
-                }
-                // TODO add no set checking
+            while self.board.len() < 12 && self.deck.len() >= 3 {
+                self.deal_three();
             }
+            // TODO add no set checking
         }
 
         fn deal_three(&mut self) {

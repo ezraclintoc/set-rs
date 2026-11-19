@@ -13,3 +13,4 @@ worker-macros = { version = "0.9" }
 shared = { path = "../shared", features = ["server"]}
 serde = { workspace = true }
 serde_json = { workspace = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }

@@ -115,7 +115,7 @@ cd frontend && trunk serve
 * [x] Card ID encoding with `Card::from_id` and `Card::id`
 * [x] `is_set`
 * [x] Client and server message types
-* [ ] `Game::new` and `deal` (in progress)
+* [x] `Game::new` and `deal` (in progress)
 * [ ] `find_set`
 * [ ] `join`, `set_ready`, and `claim`
 * [ ] In place card replacement after a set is found

@@ -107,6 +107,19 @@ mod server {
             let n = self.deck.len();
             self.board.extend(self.deck.drain(n - 3..));
         }
+
+        pub fn join(&mut self, name: String, token: String) -> u32 {
+            self.next_player_id += 1;
+            self.players.push(PlayerInfo {
+                id: self.next_player_id,
+                name,
+                score: 0,
+                ready: false,
+                connected: true,
+            });
+            self.tokens.insert(token, self.next_player_id);
+            self.next_player_id
+        }
     }
 }
 

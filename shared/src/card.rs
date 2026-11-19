@@ -56,6 +56,34 @@ pub fn is_set_ids(ids: [u8; 3]) -> bool {
     is_set(&a, &b, &c)
 }
 
+/// The value that completes a set attribute: the three values must sum to a multiple of 3.
+/// `6 - a - b` stays non-negative for values 0..=2.
+fn missing_value(a: u8, b: u8) -> u8 {
+    (6 - a - b) % 3
+}
+
+/// The only card that forms a set with `a` and `b`.
+pub fn missing_card(a: &Card, b: &Card) -> Card {
+    Card {
+        shape: Shape::ALL[missing_value(a.shape as u8, b.shape as u8) as usize],
+        count: Count::ALL[missing_value(a.count as u8, b.count as u8) as usize],
+        color: Color::ALL[missing_value(a.color as u8, b.color as u8) as usize],
+        fill: Fill::ALL[missing_value(a.fill as u8, b.fill as u8) as usize],
+    }
+}
+
+/// Same as [`missing_card`], computed straight from card IDs.
+///
+/// An ID is the four attributes written as base-3 digits (`shape*27 + count*9 + color*3 + fill`),
+/// so the missing card's ID is built digit by digit without decoding to a `Card`.
+pub fn missing_id(a: u8, b: u8) -> u8 {
+    debug_assert!(a < 81 && b < 81);
+    [27, 9, 3, 1]
+        .iter()
+        .map(|&place| missing_value(a / place % 3, b / place % 3) * place)
+        .sum()
+}
+
 impl Card {
     pub fn from_id(id: u8) -> Card {
         assert!(id < 81);
@@ -86,4 +114,32 @@ impl Color {
 
 impl Fill {
     pub const ALL: [Fill; 3] = [Fill::Solid, Fill::Striped, Fill::Empty];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_id_examples() {
+        // 0, 1, 2 differ only in fill.
+        assert_eq!(missing_id(0, 1), 2);
+        assert_eq!(missing_id(0, 2), 1);
+        assert_eq!(missing_id(1, 2), 0);
+    }
+
+    #[test]
+    fn missing_id_completes_every_pair() {
+        for a in 0..81 {
+            for b in 0..81 {
+                if a == b {
+                    continue;
+                }
+                let c = missing_id(a, b);
+                assert!(c != a && c != b, "{a} {b} -> {c}");
+                assert!(is_set_ids([a, b, c]), "{a} {b} -> {c}");
+                assert_eq!(c, missing_card(&Card::from_id(a), &Card::from_id(b)).id());
+            }
+        }
+    }
 }

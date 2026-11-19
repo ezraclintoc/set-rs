@@ -19,8 +19,8 @@ pub enum Phase {
 
 #[cfg(feature = "server")]
 mod server {
-    use crate::ServerMsg;
     use crate::card::is_set_ids;
+    use crate::{ServerMsg, card::missing_id};
 
     use super::*;
     use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
@@ -104,7 +104,14 @@ mod server {
             while self.board.len() < 12 && self.deck.len() >= 3 {
                 self.deal_three();
             }
-            // TODO add no set checking
+            while self.find_set().is_none() {
+                if self.deck.len() >= 3 {
+                    self.deal_three();
+                } else {
+                    self.phase = Phase::Finished;
+                    break;
+                }
+            }
         }
 
         fn deal_three(&mut self) {
@@ -174,6 +181,23 @@ mod server {
             }
             Ok(self.phase)
         }
+
+        pub fn find_set(&self) -> Option<[u8; 3]> {
+            let mut on_board = [false; 81];
+            for &card in &self.board {
+                on_board[card as usize] = true;
+            }
+
+            for (i, &a) in self.board.iter().enumerate() {
+                for &b in &self.board[i + 1..] {
+                    let c = missing_id(a, b);
+                    if on_board[c as usize] {
+                        return Some([a, b, c]);
+                    }
+                }
+            }
+            None
+        }
     }
 }
 
@@ -202,5 +226,67 @@ mod tests {
 
         assert_eq!(game.reconnect("made-up"), None);
         assert_eq!(game.players.len(), 1);
+    }
+
+    fn started_game(seed: u64) -> Game {
+        let mut game = Game::new(seed);
+        game.phase = Phase::Countdown;
+        game.start();
+        game
+    }
+
+    #[test]
+    fn find_set_returns_a_valid_set() {
+        // 0, 1, 2 differ only in fill (solid, striped, empty), so they form a set.
+        let mut game = Game::new(0);
+        game.board = vec![0, 4, 1, 2];
+
+        let found = game.find_set().expect("board contains a set");
+        assert!(crate::card::is_set_ids(found));
+    }
+
+    #[test]
+    fn find_set_returns_none_without_a_set() {
+        let mut game = Game::new(0);
+        assert_eq!(game.find_set(), None);
+
+        // Two attributes vary over only two values each, so no three cards can form a set.
+        game.board = vec![0, 1, 3, 4];
+        assert_eq!(game.find_set(), None);
+    }
+
+    #[test]
+    fn start_deals_a_board_with_a_set() {
+        for seed in 0..100 {
+            let game = started_game(seed);
+            assert_eq!(game.phase, Phase::Playing);
+            assert!(game.board.len() >= 12);
+            assert!(game.find_set().is_some(), "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn full_game_reaches_finished() {
+        for seed in 0..100 {
+            let mut game = started_game(seed);
+            let id = game.join("Ezra".into(), "tok".into());
+            let mut sets = 0;
+
+            while game.phase == Phase::Playing {
+                let set = game.find_set().expect("playing board always has a set");
+                assert!(game.submit_set(set, id), "seed {seed}");
+                sets += 1;
+                assert!(sets <= 27, "seed {seed}: more sets than the deck allows");
+            }
+
+            assert_eq!(game.phase, Phase::Finished, "seed {seed}");
+            let crate::ServerMsg::State { deck_left, .. } = game.state_msg() else {
+                unreachable!()
+            };
+            assert_eq!(deck_left, 0, "seed {seed}");
+            assert_eq!(game.find_set(), None, "seed {seed}");
+            assert_eq!(game.board.len() + 3 * sets, 81, "seed {seed}: cards lost");
+            assert_eq!(game.players[0].score as usize, sets, "seed {seed}");
+        }
     }
 }

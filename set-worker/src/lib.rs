@@ -145,6 +145,43 @@ impl DurableObject for SetRoom {
         Ok(())
     }
 
+    async fn websocket_close(
+        &self,
+        ws: WebSocket,
+        code: usize,
+        reason: String,
+        _was_clean: bool,
+    ) -> Result<()> {
+        let Some(player_id) = ws.deserialize_attachment::<u32>()? else {
+            return Ok(());
+        };
+
+        // The same player can be connected from another tab. Only mark them
+        // disconnected when no other socket still belongs to them.
+        let still_connected = self.state.get_websockets().iter().any(|w| {
+            *w != ws && matches!(w.deserialize_attachment::<u32>(), Ok(Some(id)) if id == player_id)
+        });
+        if still_connected {
+            return Ok(());
+        }
+
+        let mut game = self.get_game().await?;
+
+        // TODO: disconnect can start the countdown (the last unready player left), but the
+        // alarm is never set here. Return the phase from `disconnect` and set or delete the
+        // alarm like `SetReady` does, ideally through a shared helper.
+        game.disconnect(player_id);
+        self.save_game(&game).await?;
+        let _ = ws.close(Some(code as u16), Some(reason));
+
+        let json = serde_json::to_string(&game.state_msg())?;
+        for w in self.state.get_websockets() {
+            let _ = w.send_with_str(json.clone());
+        }
+
+        Ok(())
+    }
+
     async fn alarm(&self) -> Result<Response> {
         let mut game = self.get_game().await?;
         if game.phase != Phase::Countdown {

@@ -132,25 +132,12 @@ mod server {
             self.next_player_id
         }
 
-        /// Returns the seat for a known token and marks that player connected.
-        /// Returns `None` for an unknown token, so the caller can join them as a new player.
         pub fn reconnect(&mut self, token: &str) -> Option<u32> {
             let id = *self.tokens.get(token)?;
             if let Some(player) = self.players.iter_mut().find(|p| p.id == id) {
                 player.connected = true;
             }
             Some(id)
-        }
-
-        pub fn rejoin(&mut self, token: String, pid: u32) -> bool {
-            let Some(id) = self.tokens.get(&token) else {
-                return false;
-            };
-            if *id != pid {
-                return false;
-            }
-
-            true
         }
 
         pub fn state_msg(&self) -> ServerMsg {
@@ -172,6 +159,11 @@ mod server {
                     pi.ready = ready;
                 }
             });
+            self.check_ready();
+            Ok(self.phase)
+        }
+
+        fn check_ready(&mut self) {
             if self.players.iter().all(|pi| !pi.connected || pi.ready) {
                 if self.phase == Phase::Lobby {
                     self.phase = Phase::Countdown;
@@ -179,7 +171,14 @@ mod server {
             } else if self.phase == Phase::Countdown {
                 self.phase = Phase::Lobby;
             }
-            Ok(self.phase)
+        }
+
+        // TODO: return the phase so the worker can set or delete the countdown alarm.
+        pub fn disconnect(&mut self, player_id: u32) {
+            if let Some(player) = self.players.iter_mut().find(|p| p.id == player_id) {
+                player.connected = false;
+            }
+            self.check_ready();
         }
 
         pub fn find_set(&self) -> Option<[u8; 3]> {

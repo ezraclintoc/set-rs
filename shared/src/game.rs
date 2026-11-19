@@ -52,6 +52,9 @@ mod server {
         }
 
         pub fn start(&mut self) {
+            if self.phase != Phase::Countdown {
+                return;
+            }
             self.phase = Phase::Playing;
             self.deal();
         }
@@ -120,8 +123,78 @@ mod server {
             self.tokens.insert(token, self.next_player_id);
             self.next_player_id
         }
+
+        /// Returns the seat for a known token and marks that player connected.
+        /// Returns `None` for an unknown token, so the caller can join them as a new player.
+        pub fn reconnect(&mut self, token: &str) -> Option<u32> {
+            let id = *self.tokens.get(token)?;
+            if let Some(player) = self.players.iter_mut().find(|p| p.id == id) {
+                player.connected = true;
+            }
+            Some(id)
+        }
+
+        pub fn rejoin(&mut self, token: String, pid: u32) -> bool {
+            let Some(id) = self.tokens.get(&token) else {
+                return false;
+            };
+            if *id != pid {
+                return false;
+            }
+
+            true
+        }
+
+        pub fn deck_len(&self) -> usize {
+            self.deck.len()
+        }
+
+        pub fn set_ready(&mut self, player_id: u32, ready: bool) -> Result<Phase, String> {
+            if self.phase != Phase::Lobby && self.phase != Phase::Countdown {
+                return Err("Cannot ready. Not in lobby.".into());
+            }
+
+            self.players.iter_mut().for_each(|pi| {
+                if pi.id == player_id {
+                    pi.ready = ready;
+                }
+            });
+            if self.players.iter().all(|pi| !pi.connected || pi.ready) {
+                if self.phase == Phase::Lobby {
+                    self.phase = Phase::Countdown;
+                }
+            } else if self.phase == Phase::Countdown {
+                self.phase = Phase::Lobby;
+            }
+            Ok(self.phase)
+        }
     }
 }
 
 #[cfg(feature = "server")]
 pub use server::*;
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reconnect_with_known_token_keeps_seat() {
+        let mut game = Game::new(0);
+        let id = game.join("Ezra".into(), "tok".into());
+        game.players[0].connected = false;
+
+        assert_eq!(game.reconnect("tok"), Some(id));
+        assert_eq!(game.players.len(), 1);
+        assert!(game.players[0].connected);
+    }
+
+    #[test]
+    fn reconnect_with_unknown_token_finds_nothing() {
+        let mut game = Game::new(0);
+        game.join("Ezra".into(), "tok".into());
+
+        assert_eq!(game.reconnect("made-up"), None);
+        assert_eq!(game.players.len(), 1);
+    }
+}

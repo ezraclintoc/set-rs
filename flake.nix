@@ -24,6 +24,9 @@
             pkgs.cargo-generate
             pkgs.trunk           # for the Leptos frontend
             pkgs.nodejs
+            # worker-build (installed by the wrangler build command) links OpenSSL
+            pkgs.openssl
+            pkgs.pkg-config
           ];
         };
       });

@@ -40,17 +40,12 @@ impl DurableObject for SetRoom {
             WebSocketIncomingMessage::String(text) => {
                 match serde_json::from_str::<ClientMsg>(&text) {
                     Ok(ClientMsg::Join { name, token }) => {
-                        let mut game = self
-                            .state
-                            .storage()
-                            .get::<Game>("game")
-                            .await?
-                            .unwrap_or_else(|| Game::new(Date::now().as_millis()));
+                        let mut game = self.get_game().await?;
 
                         let token = token.unwrap_or_else(|| new_token().unwrap());
                         let uid = game.join(name, token.clone());
 
-                        self.state.storage().put("game", game).await?;
+                        self.save_game(&game).await?;
 
                         let json = serde_json::to_string(&ServerMsg::Welcome {
                             player_id: uid,
@@ -69,10 +64,25 @@ impl DurableObject for SetRoom {
     }
 }
 
+impl SetRoom {
+    async fn get_game(&self) -> Result<Game, worker::Error> {
+        Ok(self
+            .state
+            .storage()
+            .get::<Game>("game")
+            .await?
+            .unwrap_or_else(|| Game::new(Date::now().as_millis())))
+    }
+
+    async fn save_game(&self, game: &Game) -> Result<(), worker::Error> {
+        self.state.storage().put("game", game).await
+    }
+}
+
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     // TODO add router
-    let ns = env.durable_object("GAME")?;
+    let ns = env.durable_object("SETROOM")?;
     let stub = ns.id_from_name("room-1")?.get_stub()?;
     stub.fetch_with_request(req).await
 }

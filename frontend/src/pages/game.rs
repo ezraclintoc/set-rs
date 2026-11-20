@@ -7,9 +7,11 @@ use futures::StreamExt;
 use futures::channel::mpsc;
 use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
+use shared::card::*;
 use shared::game::{Phase, PlayerInfo};
 use shared::{ClientMsg, ServerMsg};
 
+use crate::components::card::CardFace;
 use crate::storage::*;
 
 #[component]
@@ -111,7 +113,11 @@ pub fn Game() -> impl IntoView {
     };
     let in_lobby = move || matches!(phase.get(), Some(Phase::Lobby | Phase::Countdown));
 
+    // TODO: remove once the board renders real cards. Picks a new card on every page load.
+    let random_card = Card::from_id((js_sys::Math::random() * 81.0) as u8);
+
     view! {
+        <CardFace card=random_card />
         <p>{move || format!("{:?}", phase.get())}</p>
         <Show when=in_lobby>
             <button on:click=move |_| send(ClientMsg::SetReady { ready: !me_ready() })>

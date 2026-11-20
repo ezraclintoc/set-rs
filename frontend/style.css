@@ -115,3 +115,23 @@ button:disabled {
 	color: var(--danger);
 	font-size: 0.9rem;
 }
+
+.card-bg { fill: white; stroke: var(--border); stroke-width: 2; }
+.shape   { stroke-width: 4; stroke-linejoin: round; }
+
+.shape.red    { stroke: var(--card-red); }
+.shape.purple { stroke: var(--card-purple); }
+.shape.green  { stroke: var(--card-green); }
+
+.shape.empty          { fill: none; }
+.shape.red.solid      { fill: var(--card-red); }
+.shape.purple.solid   { fill: var(--card-purple); }
+.shape.green.solid    { fill: var(--card-green); }
+.shape.red.striped    { fill: url(#stripes-red); }
+.shape.purple.striped { fill: url(#stripes-purple); }
+.shape.green.striped  { fill: url(#stripes-green); }
+
+.card-svg {
+	width: 120px;
+	display: block;
+}

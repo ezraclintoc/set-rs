@@ -4,7 +4,7 @@ A realtime multiplayer version of the card game SET, written entirely in Rust an
 
 Players join a room, ready up, and race to find sets on a shared board. Every room is a single Durable Object that owns the game state and settles who claimed a set first.
 
-> **Status:** early development. The shared game logic is in progress; the server and frontend have not been started yet.
+> **Status:** early development. The shared game logic and the worker are playable over WebSockets; the frontend has not been started yet.
 
 ## How to play
 
@@ -28,7 +28,7 @@ Each room is one Durable Object, addressed by its room code with `id_from_name(c
 * holds the deck, board, players, scores, and game phase
 * accepts player WebSockets through the Hibernation API, so idle rooms cost nothing
 * saves the full game state to storage after every change, so nothing is lost when it hibernates
-* uses alarms for the ready countdown
+* uses its alarm for the ready countdown, and to delete the room once it has been empty for a few minutes
 
 ## Architecture
 
@@ -37,7 +37,7 @@ set-rs/
 ├── Cargo.toml        # workspace
 ├── flake.nix         # dev shell (Rust + wasm target, wrangler, trunk)
 ├── shared/           # card types, rules, and the message protocol
-├── worker/           # Cloudflare Worker and the Game Durable Object
+├── set-worker/       # Cloudflare Worker and the SetRoom Durable Object
 └── frontend/         # Leptos client, built with trunk
 ```
 
@@ -50,8 +50,9 @@ Compiled into both the worker and the frontend, so the client and server can nev
 * `is_set`: an attribute is valid when its three values sum to a multiple of 3, which is true exactly when they are all equal or all different
 * `ClientMsg` and `ServerMsg`, the WebSocket protocol
 * `Game` (behind the `server` feature): the authoritative game state and rules. The frontend does not compile it.
+* `find_set`: builds a lookup table of the board, then for each pair of cards computes the one card that completes the set and checks whether it is on the board
 
-Keeping `Game` as a plain struct means full games can be tested with `cargo test` natively, and the Durable Object stays a thin layer that loads state, calls a method, saves, and broadcasts.
+Keeping `Game` as a plain struct means full games can be tested with `cargo test` natively (tests live next to each module, in `shared/src/game/tests.rs` and `shared/src/card/tests.rs`), and the Durable Object stays a thin layer that loads state, calls a method, saves, and broadcasts.
 
 ### Protocol
 
@@ -61,7 +62,7 @@ Messages are JSON, tagged by a `type` field.
 
 | Message | Purpose |
 | --- | --- |
-| `Join { name, token }` | Join a room, or rejoin with a saved token |
+| `Join { name, token }` | Join a room, or rejoin with a saved token. Names must be 4 to 19 characters and unique in the room |
 | `SetReady { ready }` | Toggle ready in the lobby |
 | `SubmitSet { cards }` | Claim a set by **card ID** |
 
@@ -70,10 +71,9 @@ Messages are JSON, tagged by a `type` field.
 | Message | Purpose |
 | --- | --- |
 | `Welcome { player_id, token }` | Sent once on join; the token is kept in localStorage for reconnects |
-| `State { ... }` | Full snapshot of the room: phase, board, players, cards left in the deck |
-| `Countdown { seconds }` | Everyone is ready and the game is about to start |
+| `State { phase, board, players, deck_left }` | Full snapshot of the room, sent after every change. The phase (`Lobby`, `Countdown`, `Playing`, `Finished`) tells the client which screen to show |
 | `SetFound { player_id, cards }` | Someone scored; the client highlights the set before the next `State` |
-| `Rejected { reason }` | An invalid or stale claim |
+| `Rejected { reason }` | An invalid name, a stale or invalid claim, or a message sent in the wrong phase |
 
 Claims use card IDs instead of board positions because the board changes as sets are replaced. A claim made against an outdated board simply fails, since the cards are no longer on the table.
 
@@ -83,7 +83,8 @@ Claims use card IDs instead of board positions because the board changes as sets
 2. When every connected player is ready, the room starts a short countdown. Anyone unreadying or joining cancels it.
 3. Twelve cards are dealt, plus three more at a time while no set exists.
 4. A valid claim scores a point. Replacement cards go into the same slots so the board does not reshuffle, unless the board is above 12 cards, in which case the set is just removed.
-5. The game ends when the deck is empty and no set remains.
+5. The game ends when the deck is empty and no set remains. The phase becomes `Finished` and the client shows the results.
+6. When nobody has been connected for 3 minutes, the room deletes its storage. Joining the same code afterwards starts a fresh room.
 
 ### Rendering
 
@@ -100,7 +101,7 @@ nix develop
 cargo test -p shared --features server
 
 # run the worker locally
-cd worker && wrangler dev
+cd set-worker && wrangler dev
 
 # run the frontend
 cd frontend && trunk serve
@@ -114,22 +115,26 @@ cd frontend && trunk serve
 * [x] Card ID encoding with `Card::from_id` and `Card::id`
 * [x] `is_set`
 * [x] Client and server message types
-* [x] `Game::new` and `deal` (in progress)
-* [ ] `find_set`
-* [ ] `join`, `set_ready`, and `claim`
-* [ ] In place card replacement after a set is found
-* [ ] Game over detection
-* [ ] Tests for card ID round trips, `is_set`, `find_set`, and full simulated games
+* [x] `Game::new` and `deal`
+* [x] `find_set`
+* [x] `join`, `reconnect`, `set_ready`, `disconnect`, and `submit_set`
+* [x] In place card replacement after a set is found
+* [x] Game over detection
+* [x] Tests for `find_set`, missing card IDs, readiness, claims, and full simulated games
+* [ ] Tests for card ID round trips and `is_set`
 
 ### Worker
 
-* [ ] Route `/api/game/:code/ws` to a Game Durable Object and upgrade to a WebSocket
-* [ ] Accept sockets with the Hibernation API, with the player ID stored as a socket attachment
-* [ ] Persist and restore `Game` from Durable Object storage
-* [ ] Join, reconnect by token, and ready handling
-* [ ] Countdown alarm and game start
-* [ ] Set claims and broadcasting
-* [ ] Validate all incoming card IDs before use
+* [x] Route `/api/game/:code/ws` to a SetRoom Durable Object and upgrade to a WebSocket
+* [x] Accept sockets with the Hibernation API, with the player ID stored as a socket attachment
+* [x] Persist and restore `Game` from Durable Object storage
+* [x] Join, reconnect by token, and ready handling
+* [x] Countdown alarm and game start
+* [x] Set claims and broadcasting
+* [x] Validate all incoming card IDs before use
+* [x] Delete rooms that have been empty for a few minutes
+* [ ] Validate room codes in the router
+* [ ] Countdown end time in `State`, so clients can show a synced timer
 * [ ] Serve the built frontend as static assets
 
 ### Frontend

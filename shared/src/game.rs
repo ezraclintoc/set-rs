@@ -100,7 +100,7 @@ mod server {
             true
         }
 
-        pub fn deal(&mut self) {
+        fn deal(&mut self) {
             while self.board.len() < 12 && self.deck.len() >= 3 {
                 self.deal_three();
             }
@@ -119,7 +119,22 @@ mod server {
             self.board.extend(self.deck.drain(n - 3..));
         }
 
-        pub fn join(&mut self, name: String, token: String) -> u32 {
+        pub fn join(&mut self, name: String, token: String) -> Result<u32, &'static str> {
+            let name: String = name.trim().into();
+            if name.chars().count() <= 3 {
+                return Err("Your name is too short");
+            }
+            if name.chars().count() >= 20 {
+                return Err("Your name is too long");
+            }
+            if self
+                .players
+                .iter()
+                .any(|pi| pi.name.eq_ignore_ascii_case(&name))
+            {
+                return Err("Someone already has that name");
+            }
+
             self.next_player_id += 1;
             self.players.push(PlayerInfo {
                 id: self.next_player_id,
@@ -129,7 +144,8 @@ mod server {
                 connected: true,
             });
             self.tokens.insert(token, self.next_player_id);
-            self.next_player_id
+            self.check_ready();
+            Ok(self.next_player_id)
         }
 
         pub fn reconnect(&mut self, token: &str) -> Option<u32> {
@@ -137,6 +153,7 @@ mod server {
             if let Some(player) = self.players.iter_mut().find(|p| p.id == id) {
                 player.connected = true;
             }
+            self.check_ready();
             Some(id)
         }
 
@@ -154,17 +171,20 @@ mod server {
                 return Err("Cannot ready. Not in lobby.".into());
             }
 
+            // TODO use find to in case there are no players with id
             self.players.iter_mut().for_each(|pi| {
                 if pi.id == player_id {
                     pi.ready = ready;
                 }
             });
+
             self.check_ready();
             Ok(self.phase)
         }
 
         fn check_ready(&mut self) {
-            if self.players.iter().all(|pi| !pi.connected || pi.ready) {
+            let anyone_connected = self.players.iter().any(|pi| pi.connected);
+            if anyone_connected && self.players.iter().all(|pi| !pi.connected || pi.ready) {
                 if self.phase == Phase::Lobby {
                     self.phase = Phase::Countdown;
                 }
@@ -173,12 +193,14 @@ mod server {
             }
         }
 
-        // TODO: return the phase so the worker can set or delete the countdown alarm.
-        pub fn disconnect(&mut self, player_id: u32) {
+        /// Marks a player disconnected and returns the phase, which can change: the last
+        /// unready player leaving starts the countdown, and the room emptying cancels it.
+        pub fn disconnect(&mut self, player_id: u32) -> Phase {
             if let Some(player) = self.players.iter_mut().find(|p| p.id == player_id) {
                 player.connected = false;
             }
             self.check_ready();
+            self.phase
         }
 
         pub fn find_set(&self) -> Option<[u8; 3]> {
@@ -210,7 +232,7 @@ mod tests {
     #[test]
     fn reconnect_with_known_token_keeps_seat() {
         let mut game = Game::new(0);
-        let id = game.join("Ezra".into(), "tok".into());
+        let id = game.join("Ezra".into(), "tok".into()).unwrap();
         game.players[0].connected = false;
 
         assert_eq!(game.reconnect("tok"), Some(id));
@@ -221,10 +243,29 @@ mod tests {
     #[test]
     fn reconnect_with_unknown_token_finds_nothing() {
         let mut game = Game::new(0);
-        game.join("Ezra".into(), "tok".into());
+        game.join("Ezra".into(), "tok".into()).unwrap();
 
         assert_eq!(game.reconnect("made-up"), None);
         assert_eq!(game.players.len(), 1);
+    }
+
+    #[test]
+    fn last_unready_player_leaving_starts_countdown() {
+        let mut game = Game::new(0);
+        let a = game.join("Alice".into(), "a".into()).unwrap();
+        let b = game.join("Bobby".into(), "b".into()).unwrap();
+        assert_eq!(game.set_ready(a, true), Ok(Phase::Lobby));
+
+        assert_eq!(game.disconnect(b), Phase::Countdown);
+    }
+
+    #[test]
+    fn everyone_leaving_cancels_countdown() {
+        let mut game = Game::new(0);
+        let a = game.join("Alice".into(), "a".into()).unwrap();
+        assert_eq!(game.set_ready(a, true), Ok(Phase::Countdown));
+
+        assert_eq!(game.disconnect(a), Phase::Lobby);
     }
 
     fn started_game(seed: u64) -> Game {
@@ -268,7 +309,7 @@ mod tests {
     fn full_game_reaches_finished() {
         for seed in 0..100 {
             let mut game = started_game(seed);
-            let id = game.join("Ezra".into(), "tok".into());
+            let id = game.join("Ezra".into(), "tok".into()).unwrap();
             let mut sets = 0;
 
             while game.phase == Phase::Playing {

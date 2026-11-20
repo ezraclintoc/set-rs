@@ -6,6 +6,8 @@ use shared::game::{Game, Phase};
 use shared::{ClientMsg, ServerMsg};
 use worker::*;
 
+const COUNTDOWN: std::time::Duration = std::time::Duration::from_secs(5);
+
 #[expect(dead_code)]
 #[durable_object]
 pub struct SetRoom {
@@ -54,11 +56,22 @@ impl DurableObject for SetRoom {
                             Some(seat) => seat,
                             None => {
                                 let token = new_token()?;
-                                (game.join(name, token.clone()), token)
+                                match game.join(name, token.clone()) {
+                                    Ok(id) => (id, token),
+                                    Err(reason) => {
+                                        ws.send_with_str(serde_json::to_string(
+                                            &ServerMsg::Rejected {
+                                                reason: reason.into(),
+                                            },
+                                        )?)?;
+                                        return Ok(());
+                                    }
+                                }
                             }
                         };
 
                         self.save_game(&game).await?;
+                        self.sync_countdown_alarm(game.phase).await?;
 
                         ws.serialize_attachment(player_id)?;
 
@@ -66,6 +79,11 @@ impl DurableObject for SetRoom {
                             player_id,
                             token,
                         })?)?;
+
+                        let json = serde_json::to_string(&game.state_msg())?;
+                        for w in self.state.get_websockets() {
+                            let _ = w.send_with_str(&json);
+                        }
                     }
                     Ok(ClientMsg::SetReady { ready }) => {
                         let mut game = self.get_game().await?;
@@ -85,18 +103,7 @@ impl DurableObject for SetRoom {
 
                         self.save_game(&game).await?;
 
-                        if phase == Phase::Lobby
-                            && self.state.storage().get_alarm().await?.is_some()
-                        {
-                            self.state.storage().delete_alarm().await?;
-                        } else if phase == Phase::Countdown
-                            && self.state.storage().get_alarm().await?.is_none()
-                        {
-                            self.state
-                                .storage()
-                                .set_alarm(std::time::Duration::from_secs(5))
-                                .await?;
-                        }
+                        self.sync_countdown_alarm(phase).await?;
 
                         // TODO: replace the broadcast loops with a shared `broadcast` helper.
                         let json = serde_json::to_string(&game.state_msg())?;
@@ -167,11 +174,9 @@ impl DurableObject for SetRoom {
 
         let mut game = self.get_game().await?;
 
-        // TODO: disconnect can start the countdown (the last unready player left), but the
-        // alarm is never set here. Return the phase from `disconnect` and set or delete the
-        // alarm like `SetReady` does, ideally through a shared helper.
-        game.disconnect(player_id);
+        let phase = game.disconnect(player_id);
         self.save_game(&game).await?;
+        self.sync_countdown_alarm(phase).await?;
         let _ = ws.close(Some(code as u16), Some(reason));
 
         let json = serde_json::to_string(&game.state_msg())?;
@@ -207,24 +212,38 @@ impl SetRoom {
             .storage()
             .get::<Game>("game")
             .await?
-            .unwrap_or_else(|| Game::new(Date::now().as_millis())))
+            .unwrap_or_else(|| Game::new(getrandom::u64().unwrap_or(Date::now().as_millis()))))
     }
 
     async fn save_game(&self, game: &Game) -> Result<(), worker::Error> {
         self.state.storage().put("game", game).await
+    }
+
+    async fn sync_countdown_alarm(&self, phase: Phase) -> Result<()> {
+        let storage = self.state.storage();
+        match phase {
+            Phase::Countdown if storage.get_alarm().await?.is_none() => {
+                storage.set_alarm(COUNTDOWN).await?;
+            }
+            Phase::Lobby if storage.get_alarm().await?.is_some() => {
+                storage.delete_alarm().await?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     Router::new()
-        .get_async("/api/game/:id/ws", |req, ctx| async move {
-            let id = match ctx.param("id") {
-                Some(n) => n.clone(),
-                None => return Response::error("missing id", 400),
+        .get_async("/api/game/:code/ws", |req, ctx| async move {
+            let code = match ctx.param("code") {
+                Some(n) => n.to_ascii_lowercase().clone(),
+                None => return Response::error("missing code", 400),
             };
             let namespace = ctx.durable_object("SETROOM")?;
-            let stub = namespace.id_from_name(&id)?.get_stub()?;
+            let stub = namespace.id_from_name(&code)?.get_stub()?;
             stub.fetch_with_request(req).await
         })
         .run(req, env)

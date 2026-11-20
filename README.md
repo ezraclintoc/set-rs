@@ -123,7 +123,7 @@ cd frontend && trunk serve
 
 ### Worker
 
-* [ ] Route `/room/:code` to a Game Durable Object and upgrade to a WebSocket
+* [ ] Route `/api/game/:code/ws` to a Game Durable Object and upgrade to a WebSocket
 * [ ] Accept sockets with the Hibernation API, with the player ID stored as a socket attachment
 * [ ] Persist and restore `Game` from Durable Object storage
 * [ ] Join, reconnect by token, and ready handling

@@ -141,7 +141,9 @@ impl DurableObject for SetRoom {
                             let _ = w.send_with_str(s_json.clone());
                         }
                     }
-                    Err(_) => {}
+                    Err(_) => ws.send_with_str(serde_json::to_string(&ServerMsg::Rejected {
+                        reason: "Bad JSON".into(),
+                    })?)?,
                 }
             }
             WebSocketIncomingMessage::Binary(_) => {
@@ -216,7 +218,7 @@ impl SetRoom {
             .storage()
             .get::<Game>("game")
             .await?
-            .unwrap_or_else(|| Game::new(getrandom::u64().unwrap_or(Date::now().as_millis()))))
+            .unwrap_or_else(|| Game::new(getrandom::u64().expect("getrandom should not fail"))))
     }
 
     async fn save_game(&self, game: &Game) -> Result<(), worker::Error> {
@@ -251,6 +253,11 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 Some(n) => n.to_ascii_lowercase().clone(),
                 None => return Response::error("missing code", 400),
             };
+
+            if code.len() < 4 || code.len() > 8 {
+                return Response::error("invalid code length", 400);
+            }
+
             let namespace = ctx.durable_object("SETROOM")?;
             let stub = namespace.id_from_name(&code)?.get_stub()?;
             stub.fetch_with_request(req).await

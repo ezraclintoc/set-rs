@@ -82,13 +82,7 @@ mod server {
                 return false;
             }
 
-            indexes.sort_unstable_by(|a, b| b.cmp(a));
-
-            indexes.iter().for_each(|&i| {
-                self.board.remove(i);
-            });
-
-            // TODO make dealt cards fill the removed cards
+            self.deal_in_place(&mut indexes);
             self.deal();
 
             self.players.iter_mut().for_each(|pi| {
@@ -98,6 +92,19 @@ mod server {
             });
 
             true
+        }
+
+        fn deal_in_place(&mut self, indexes: &mut [usize]) {
+            if self.deck.len() >= 3 && self.board.len() == 12 {
+                indexes.iter().for_each(|&i| {
+                    self.board[i] = self.deck.pop().unwrap();
+                });
+            } else {
+                indexes.sort_unstable();
+                indexes.iter().rev().for_each(|&i| {
+                    self.board.remove(i);
+                });
+            }
         }
 
         fn deal(&mut self) {

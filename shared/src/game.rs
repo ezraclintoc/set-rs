@@ -166,7 +166,7 @@ mod server {
             }
         }
 
-        pub fn set_ready(&mut self, player_id: u32, ready: bool) -> Result<Phase, String> {
+        pub fn set_ready(&mut self, player_id: u32, ready: bool) -> Result<(), String> {
             if self.phase != Phase::Lobby && self.phase != Phase::Countdown {
                 return Err("Cannot ready. Not in lobby.".into());
             }
@@ -179,7 +179,7 @@ mod server {
             });
 
             self.check_ready();
-            Ok(self.phase)
+            Ok(())
         }
 
         fn check_ready(&mut self) {
@@ -193,14 +193,11 @@ mod server {
             }
         }
 
-        /// Marks a player disconnected and returns the phase, which can change: the last
-        /// unready player leaving starts the countdown, and the room emptying cancels it.
-        pub fn disconnect(&mut self, player_id: u32) -> Phase {
+        pub fn disconnect(&mut self, player_id: u32) {
             if let Some(player) = self.players.iter_mut().find(|p| p.id == player_id) {
                 player.connected = false;
             }
             self.check_ready();
-            self.phase
         }
 
         pub fn find_set(&self) -> Option<[u8; 3]> {
@@ -254,18 +251,22 @@ mod tests {
         let mut game = Game::new(0);
         let a = game.join("Alice".into(), "a".into()).unwrap();
         let b = game.join("Bobby".into(), "b".into()).unwrap();
-        assert_eq!(game.set_ready(a, true), Ok(Phase::Lobby));
+        game.set_ready(a, true).unwrap();
+        assert_eq!(game.phase, Phase::Lobby);
 
-        assert_eq!(game.disconnect(b), Phase::Countdown);
+        game.disconnect(b);
+        assert_eq!(game.phase, Phase::Countdown);
     }
 
     #[test]
     fn everyone_leaving_cancels_countdown() {
         let mut game = Game::new(0);
         let a = game.join("Alice".into(), "a".into()).unwrap();
-        assert_eq!(game.set_ready(a, true), Ok(Phase::Countdown));
+        game.set_ready(a, true).unwrap();
+        assert_eq!(game.phase, Phase::Countdown);
 
-        assert_eq!(game.disconnect(a), Phase::Lobby);
+        game.disconnect(a);
+        assert_eq!(game.phase, Phase::Lobby);
     }
 
     fn started_game(seed: u64) -> Game {

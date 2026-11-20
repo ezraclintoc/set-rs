@@ -7,6 +7,7 @@ use shared::{ClientMsg, ServerMsg};
 use worker::*;
 
 const COUNTDOWN: std::time::Duration = std::time::Duration::from_secs(5);
+const DELETE: std::time::Duration = std::time::Duration::from_mins(3);
 
 #[expect(dead_code)]
 #[durable_object]
@@ -71,7 +72,7 @@ impl DurableObject for SetRoom {
                         };
 
                         self.save_game(&game).await?;
-                        self.sync_countdown_alarm(game.phase).await?;
+                        self.sync_alarm(&game).await?;
 
                         ws.serialize_attachment(player_id)?;
 
@@ -94,16 +95,16 @@ impl DurableObject for SetRoom {
                             return Ok(());
                         };
 
-                        let Ok(phase) = game.set_ready(player_id, ready) else {
+                        if game.set_ready(player_id, ready).is_err() {
                             ws.send_with_str(serde_json::to_string(&ServerMsg::Rejected {
                                 reason: "Unable To Ready. Not In Lobby.".into(),
                             })?)?;
                             return Ok(());
-                        };
+                        }
 
                         self.save_game(&game).await?;
 
-                        self.sync_countdown_alarm(phase).await?;
+                        self.sync_alarm(&game).await?;
 
                         // TODO: replace the broadcast loops with a shared `broadcast` helper.
                         let json = serde_json::to_string(&game.state_msg())?;
@@ -163,8 +164,6 @@ impl DurableObject for SetRoom {
             return Ok(());
         };
 
-        // The same player can be connected from another tab. Only mark them
-        // disconnected when no other socket still belongs to them.
         let still_connected = self.state.get_websockets().iter().any(|w| {
             *w != ws && matches!(w.deserialize_attachment::<u32>(), Ok(Some(id)) if id == player_id)
         });
@@ -174,9 +173,9 @@ impl DurableObject for SetRoom {
 
         let mut game = self.get_game().await?;
 
-        let phase = game.disconnect(player_id);
+        game.disconnect(player_id);
         self.save_game(&game).await?;
-        self.sync_countdown_alarm(phase).await?;
+        self.sync_alarm(&game).await?;
         let _ = ws.close(Some(code as u16), Some(reason));
 
         let json = serde_json::to_string(&game.state_msg())?;
@@ -189,6 +188,11 @@ impl DurableObject for SetRoom {
 
     async fn alarm(&self) -> Result<Response> {
         let mut game = self.get_game().await?;
+        if !game.players.iter().any(|pi| pi.connected) {
+            self.state.storage().delete_all().await?;
+            return Response::ok("");
+        }
+
         if game.phase != Phase::Countdown {
             return Response::ok("");
         }
@@ -219,13 +223,18 @@ impl SetRoom {
         self.state.storage().put("game", game).await
     }
 
-    async fn sync_countdown_alarm(&self, phase: Phase) -> Result<()> {
+    async fn sync_alarm(&self, game: &Game) -> Result<()> {
         let storage = self.state.storage();
-        match phase {
-            Phase::Countdown if storage.get_alarm().await?.is_none() => {
-                storage.set_alarm(COUNTDOWN).await?;
+        match game.phase {
+            Phase::Countdown => {
+                if storage.get_alarm().await?.is_none() {
+                    storage.set_alarm(COUNTDOWN).await?;
+                }
             }
-            Phase::Lobby if storage.get_alarm().await?.is_some() => {
+            _ if !game.players.iter().any(|pi| pi.connected) => {
+                storage.set_alarm(DELETE).await?;
+            }
+            _ if storage.get_alarm().await?.is_some() => {
                 storage.delete_alarm().await?;
             }
             _ => {}

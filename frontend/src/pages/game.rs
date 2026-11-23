@@ -141,7 +141,7 @@ pub fn Game() -> impl IntoView {
             <GameHeader code=header_code />
             <div class="main">
                 <ul class="players">
-                    {move || players.get().into_iter().filter(|pi| pi.connected).map(|pi| {  let playing = matches!(phase.get(), Some(Phase::Playing | Phase::Finished)); view! {
+                    {let playing = matches!(phase.get(), Some(Phase::Playing | Phase::Finished)); move || players.get().into_iter().filter(|pi| pi.connected || playing).map(|pi| { view! {
                         <li class="player" class:ready=pi.ready class:offline=!pi.connected>
                             <span class="name">{pi.name.clone()}</span>
                             <span class="status">

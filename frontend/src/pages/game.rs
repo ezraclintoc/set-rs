@@ -6,12 +6,14 @@ use leptos_router::hooks::use_params_map;
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gloo_net::websocket::{Message, futures::WebSocket};
+use leptos::logging::*;
 use leptos::task::spawn_local;
 use shared::card::*;
 use shared::game::{Phase, PlayerInfo};
 use shared::{ClientMsg, ServerMsg};
 
 use crate::components::card::CardFace;
+use crate::components::header::GameHeader;
 use crate::storage::*;
 
 #[component]
@@ -28,7 +30,7 @@ pub fn Game() -> impl IntoView {
     let player_id = RwSignal::new(None::<u32>);
     let phase = RwSignal::new(None::<Phase>);
     let board = RwSignal::new(Vec::<u8>::new());
-    let _selected_cards = RwSignal::new(Vec::<u8>::new());
+    let selected_cards = RwSignal::new(Vec::<u8>::new());
     let deck_left = RwSignal::new(81);
     let players = RwSignal::new(Vec::<PlayerInfo>::new());
 
@@ -36,6 +38,8 @@ pub fn Game() -> impl IntoView {
 
     let params = use_params_map();
     let code = params.read_untracked().get("code").unwrap_or_default();
+    // `code` is moved into the socket task below, so the header gets its own copy.
+    let header_code = code.clone();
 
     let location = window().location();
     let host = if location.port().unwrap() == "8080" {
@@ -59,6 +63,7 @@ pub fn Game() -> impl IntoView {
     })
     .unwrap();
     let _ = tx.unbounded_send(Message::Text(json));
+
     // StoredValue makes the sender Copy, so event handlers in the view can use it.
     let tx = StoredValue::new(tx);
     let send = move |msg: ClientMsg| {
@@ -112,27 +117,64 @@ pub fn Game() -> impl IntoView {
         players.with(|ps| ps.iter().any(|p| p.id == id && p.ready))
     };
     let in_lobby = move || matches!(phase.get(), Some(Phase::Lobby | Phase::Countdown));
+    let toggle_card = move |id: u8| {
+        selected_cards.update(|sel| {
+            if sel.contains(&id) {
+                sel.retain(|&c| c != id);
+            } else {
+                sel.push(id);
+            }
 
-    // TODO: remove once the board renders real cards. Picks a new card on every page load.
-    let random_card = Card::from_id((js_sys::Math::random() * 81.0) as u8);
+            if let Ok(cards) = <[u8; 3]>::try_from(sel.as_slice()) {
+                if is_set_ids(cards) {
+                    send(ClientMsg::SubmitSet { cards });
+                }
+                sel.clear();
+            }
+
+            log!("{:?}", sel);
+        })
+    };
 
     view! {
-        <CardFace card=random_card />
-        <p>{move || format!("{:?}", phase.get())}</p>
-        <Show when=in_lobby>
-            <button on:click=move |_| send(ClientMsg::SetReady { ready: !me_ready() })>
-                {move || if me_ready() { "Not ready" } else { "Ready" }}
-            </button>
-        </Show>
-        <Show when=move || phase.get() == Some(Phase::Countdown)>
-            <p>"Everyone is ready. Starting..."</p>
-        </Show>
-        <Show when=move || phase.get() == Some(Phase::Playing)>
-            <div class="board">
-                {move || board.get().iter()
-                    .map(|_| view! { <button><CardFace card=Card::from_id((js_sys::Math::random() * 81.0) as u8) /></button> })
-                    .collect_view()}
+        <div class="game">
+            <GameHeader code=header_code />
+            <div class="main">
+                <ul class="players">
+                    {move || players.get().into_iter().filter(|pi| pi.connected).map(|pi| {  let playing = matches!(phase.get(), Some(Phase::Playing | Phase::Finished)); view! {
+                        <li class="player" class:ready=pi.ready class:offline=!pi.connected>
+                            <span class="name">{pi.name.clone()}</span>
+                            <span class="status">
+                                {if playing { pi.score.to_string() } else if pi.ready { "Ready".to_string() } else { "Waiting".to_string() }}
+                            </span>
+
+                        </li>
+                    }}).collect_view()}
+                </ul>
+                <div class="play-area">
+                    <Show when=in_lobby>
+                        <button on:click=move |_| send(ClientMsg::SetReady { ready: !me_ready() })>
+                            {move || if me_ready() { "Not ready" } else { "Ready" }}
+                        </button>
+                    </Show>
+                    <Show when=move || phase.get() == Some(Phase::Countdown)>
+                        <p>"Everyone is ready. Starting..."</p>
+                    </Show>
+                    <Show when=move || phase.get() == Some(Phase::Playing)>
+                        <div class="board">
+                            {move || board.get().iter()
+                                .map(|&id| view! { <button on:click=move |_| toggle_card(id) class:selected=move || selected_cards.with(|s| s.contains(&id))><CardFace card=Card::from_id(id) /></button> })
+                                .collect_view()}
+                        </div>
+                    </Show>
+                </div>
+                // Third grid column, on the right of the board.
+                <div class="side-info">
+                    <Show when=move || phase.get() == Some(Phase::Playing)>
+                        <p class="deck-left">{move || format!("{} cards left", deck_left.get())}</p>
+                    </Show>
+                </div>
             </div>
-        </Show>
+        </div>
     }
 }

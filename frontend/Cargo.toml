@@ -9,6 +9,6 @@ gloo-net = "0.8.0"
 leptos = { version = "0.8.23", features = ["csr"] }
 leptos_router = "0.8.17"
 serde_json.workspace = true
-web-sys = { version = "0.3", features = ["Storage"] }
+web-sys = { version = "0.3", features = ["Document", "Element", "Storage"] }
 shared = { path = "../shared" }
 js-sys = "0.3.107"

@@ -4,7 +4,7 @@ A realtime multiplayer version of the card game SET, written entirely in Rust an
 
 Players join a room, ready up, and race to find sets on a shared board. Every room is a single Durable Object that owns the game state and settles who claimed a set first.
 
-> **Status:** early development. The shared game logic and the worker are playable over WebSockets; the frontend has not been started yet.
+> **Status:** early development. The game is playable end to end: join a room, ready up, and claim sets on a shared board. The results screen, reconnecting after a dropped connection, and polish are still in progress.
 
 ## How to play
 
@@ -100,12 +100,36 @@ nix develop
 # run the tests for the game logic
 cargo test -p shared --features server
 
-# run the worker locally
-cd set-worker && wrangler dev
+# build the frontend once, since the worker serves frontend/dist as static assets
+cd frontend && trunk build && cd ..
 
-# run the frontend
+# run the worker locally (the frontend connects to it on port 8888)
+cd set-worker && wrangler dev --port 8888
+
+# in another terminal, run the frontend with live reload on http://localhost:8080
 cd frontend && trunk serve
 ```
+
+## Deploying
+
+The worker serves the built frontend as static assets (`[assets]` in `set-worker/wrangler.toml`), so one deploy ships both.
+
+```bash
+nix develop
+
+# one time: log in to Cloudflare
+wrangler login
+
+# build the frontend for production
+cd frontend && trunk build --release && cd ..
+
+# build the worker and upload it together with frontend/dist
+cd set-worker && wrangler deploy
+```
+
+`wrangler deploy` prints the `*.workers.dev` URL. Requests to `/api/*` go to the worker, and every other path serves the frontend, falling back to `index.html` so links like `/game/abcd` work on reload. Use `wrangler deploy --dry-run` to check the build without uploading.
+
+Durable Object classes are created by the `[[migrations]]` in `wrangler.toml`. Renaming or deleting a class needs a new migration entry with a new tag.
 
 ## Roadmap
 
@@ -135,17 +159,24 @@ cd frontend && trunk serve
 * [x] Delete rooms that have been empty for a few minutes
 * [ ] Validate room codes in the router
 * [ ] Countdown end time in `State`, so clients can show a synced timer
-* [ ] Serve the built frontend as static assets
+* [x] Serve the built frontend as static assets
+* [ ] Validate the room code's characters, not only its length
 
 ### Frontend
 
-* [ ] Leptos app with a join screen and room codes
-* [ ] SVG card component
-* [ ] Lobby with ready toggles and countdown
-* [ ] Board, card selection, and claim submission
-* [ ] Instant local feedback for invalid picks using `is_set`
-* [ ] Scoreboard, set found animation, and game over screen
-* [ ] Reconnect using the saved token
+* [x] Leptos app with a join screen
+* [ ] Create room button with a random code, and code validation on the join screen
+* [x] SVG card component and a `/cards` gallery
+* [x] Header bar with the room code and a full screen toggle
+* [x] Lobby with player list and ready toggle
+* [ ] Live countdown timer in the lobby
+* [x] Board, card selection, and claim submission
+* [ ] Visible feedback for invalid picks (checked locally with `is_set_ids`)
+* [x] Player list with scores and cards left in the deck
+* [ ] Set found animation
+* [ ] Game over screen with final scores and a new game button
+* [x] Rejoin the same seat after a page reload, using the saved token
+* [ ] Reconnect automatically when the connection drops
 
 ### Planned features
 

@@ -11,3 +11,11 @@ bindings = [{ name = "SETROOM", class_name = "SetRoom" }]
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SetRoom"]
+
+# The Leptos frontend, built by `trunk build --release` in ../frontend.
+# Unknown paths fall back to index.html so client routes like /game/abcd work on reload,
+# and /api/* always goes to the worker instead of the static files.
+[assets]
+directory = "../frontend/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]

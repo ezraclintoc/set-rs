@@ -15,7 +15,7 @@ use crate::components::card::CardFace;
 use crate::storage::*;
 
 #[component]
-pub fn Room() -> impl IntoView {
+pub fn GameRedirect() -> impl IntoView {
     if load_name().trim().is_empty() {
         Either::Left(view! { <Redirect path="/" /> })
     } else {
@@ -126,6 +126,13 @@ pub fn Game() -> impl IntoView {
         </Show>
         <Show when=move || phase.get() == Some(Phase::Countdown)>
             <p>"Everyone is ready. Starting..."</p>
+        </Show>
+        <Show when=move || phase.get() == Some(Phase::Playing)>
+            <div class="board">
+                {move || board.get().iter()
+                    .map(|_| view! { <button><CardFace card=Card::from_id((js_sys::Math::random() * 81.0) as u8) /></button> })
+                    .collect_view()}
+            </div>
         </Show>
     }
 }

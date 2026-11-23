@@ -132,6 +132,38 @@ button:disabled {
 .shape.green.striped  { fill: url(#stripes-green); }
 
 .card-svg {
-	width: 120px;
+	width: clamp(70px, 18vw, 120px);
 	display: block;
+}
+
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(9, auto);
+    padding: 10px;
+}
+
+.board {
+    display: grid;
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: column;
+    justify-content: center;
+}
+
+.title {
+    text-align: center;
+    font-family: Georgia;
+    color: antiquewhite;
+}
+
+.board button {
+	border: none;
+	border-radius: 10px;
+	outline-width: 0px;
+	padding: 0px;
+	margin: 10px;
+	background: white;
+	color: white;
+	font-weight: 0;
+	cursor: pointer;
+	transition: filter 0.15s, transform 0.05s;
 }
